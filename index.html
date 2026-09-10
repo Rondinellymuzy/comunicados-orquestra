@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPJBV · Social</title>
+<!-- Biblioteca cliente do Supabase via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --burgundy:#6E1F35;
+    --burgundy-dark:#4A1424;
+    --burgundy-tint:#F3E4E8;
+    --gold:#C7952B;
+    --gold-light:#E8C874;
+    --gold-tint:#FAF0DA;
+    --cream:#FAF3E7;
+    --paper:#FFFDF9;
+    --ink:#2B1B1F;
+    --muted:#8A7568;
+    --line:#E6D9C4;
+    --shadow: 0 6px 18px rgba(74,20,36,0.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--cream);
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(110,31,53,0.05) 1px, transparent 0);
+    background-size: 22px 22px;
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    min-height:100vh;
+  }
+  h1,h2,h3,.serif{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",Palatino,serif;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    background:linear-gradient(180deg,var(--burgundy) 0%, var(--burgundy-dark) 100%);
+    color:var(--gold-light);
+    padding:28px 24px 0;
+    position:relative;
+  }
+  header::after{
+    content:"";
+    display:block;
+    height:6px;
+    margin-top:22px;
+    background:repeating-linear-gradient(90deg,var(--gold) 0 10px, transparent 10px 20px);
+    opacity:0.85;
+  }
+  .header-inner{
+    max-width:1040px;
+    margin:0 auto;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .brand{
+    font-size:28px;
+    font-style:italic;
+    letter-spacing:0.3px;
+    color:#fff;
+  }
+  .brand small{
+    display:block;
+    font-style:normal;
+    font-size:12px;
+    letter-spacing:1.5px;
+    color:var(--gold-light);
+    margin-top:2px;
+  }
+  nav.tabs{
+    max-width:1040px;
+    margin:0 auto;
+    display:flex;
+    gap:6px;
+    padding-top:18px;
+  }
+  nav.tabs button{
+    background:transparent;
+    border:none;
+    color:var(--gold-light);
+    font-size:15px;
+    font-family:Georgia,serif;
+    padding:10px 18px;
+    cursor:pointer;
+    border-radius:8px 8px 0 0;
+    opacity:0.75;
+    transition:opacity .15s, background .15s;
+  }
+  nav.tabs button:hover{opacity:1;}
+  nav.tabs button.active{
+    background:var(--cream);
+    color:var(--burgundy-dark);
+    opacity:1;
+    font-weight:600;
+  }
+
+  main{
+    max-width:1040px;
+    margin:0 auto;
+    padding:28px 24px 60px;
+  }
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .layout{
+    display:grid;
+    grid-template-columns:1fr 300px;
+    gap:22px;
+  }
+  @media (max-width:760px){
+    .layout{grid-template-columns:1fr;}
+  }
+
+  .card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:10px;
+    box-shadow:var(--shadow);
+    padding:20px;
+  }
+
+  /* ---------- Agenda ---------- */
+  .agenda-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .agenda-head h2{margin:0;font-size:22px;color:var(--burgundy-dark);text-transform:capitalize;}
+  .month-nav{display:flex;align-items:center;gap:14px;}
+  .month-nav button{
+    background:var(--burgundy-tint);
+    color:var(--burgundy-dark);
+    border:1px solid var(--line);
+    border-radius:6px;
+    width:32px;height:32px;
+    font-size:16px;
+    cursor:pointer;
+  }
+  .month-nav button:hover{background:var(--gold-tint);}
+  .today-btn{
+    font-size:12px;
+    padding:6px 14px;
+    border-radius:6px;
+    border:1px solid var(--gold);
+    background:var(--gold-tint);
+    color:var(--burgundy-dark);
+    cursor:pointer;
+  }
+
+  .calendar{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;
+  }
+  .calendar th{
+    font-size:11px;
+    letter-spacing:.5px;
+    color:var(--muted);
+    font-weight:600;
+    padding:6px 4px;
+    text-align:left;
+  }
+  .calendar td{
+    vertical-align:top;
+    border:1px solid var(--line);
+    height:92px;
+    padding:6px;
+    cursor:pointer;
+    transition:background .12s;
+  }
+  .calendar td:hover{background:var(--gold-tint);}
+  .calendar td.other-month{color:#C9BBAA;background:#FBF8F2;}
+  .calendar td.today{background:var(--burgundy-tint);}
+  .day-num{
+    font-size:12px;
+    font-weight:600;
+    color:var(--burgundy-dark);
+  }
+  .today .day-num{
+    display:inline-block;
+    background:var(--burgundy);
+    color:#fff;
+    width:20px;height:20px;
+    border-radius:50%;
+    text-align:center;
+    line-height:20px;
+  }
+  .event-chip{
+    margin-top:4px;
+    font-size:10.5px;
+    padding:2px 5px;
+    border-radius:4px;
+    background:var(--gold-tint);
+    color:var(--burgundy-dark);
+    border-left:3px solid var(--gold);
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+  }
+  .event-chip.cat-ensaio{border-color:var(--gold);}
+  .event-chip.cat-concerto{border-color:var(--burgundy); background:var(--burgundy-tint);}
+  .event-chip.cat-reuniao{border-color:var(--muted); background:#EFE9E1;}
+  .event-chip.cat-outro{border-color:#8A7568;}
+
+  .legend{
+    display:flex;
+    gap:14px;
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+  .legend span{display:flex;align-items:center;gap:5px;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .dot.cat-ensaio{background:var(--gold);}
+  .dot.cat-concerto{background:var(--burgundy);}
+  .dot.cat-reuniao{background:var(--muted);}
+  .dot.cat-outro{background:#8A7568;}
+
+  /* upcoming list */
+  .upcoming h3{margin-top:0;font-size:16px;color:var(--burgundy-dark);}
+  .upcoming-item{
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .upcoming-item:last-child{border-bottom:none;}
+  .upcoming-date{
+    font-size:11px;
+    color:var(--gold);
+    font-weight:700;
+    letter-spacing:.4px;
+    text-transform:uppercase;
+  }
+  .upcoming-title{font-size:14px;font-weight:600;margin-top:2px;}
+  .upcoming-meta{font-size:12px;color:var(--muted);margin-top:2px;}
+  .empty-note{color:var(--muted);font-size:13px;font-style:italic;}
+
+  /* ---------- Mural ---------- */
+  .mural-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+  .mural-head h2{margin:0;font-size:22px;color:var(--burgundy-dark);}
+  .btn{
+    background:var(--burgundy);
+    color:#fff;
+    border:none;
+    padding:9px 16px;
+    border-radius:7px;
+    font-size:13px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  .btn:hover{background:var(--burgundy-dark);}
+  .btn.secondary{
+    background:transparent;
+    color:var(--burgundy);
+    border:1px solid var(--burgundy);
+  }
+  .btn.secondary:hover{background:var(--burgundy-tint);}
+  .btn.small{padding:5px 10px;font-size:12px;}
+
+  .post{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px 18px;
+    margin-bottom:14px;
+    position:relative;
+    box-shadow:var(--shadow);
+  }
+  .post.pinned{border-color:var(--gold);}
+  .pin-badge{
+    position:absolute;
+    top:-9px; right:14px;
+    background:var(--gold);
+    color:#fff;
+    font-size:10px;
+    padding:3px 8px;
+    border-radius:10px;
+    letter-spacing:.4px;
+  }
+  .post-tag{
+    display:inline-block;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    font-weight:700;
+    padding:2px 8px;
+    border-radius:10px;
+    margin-bottom:8px;
+  }
+  .tag-aviso{background:var(--burgundy-tint);color:var(--burgundy-dark);}
+  .tag-lembrete{background:var(--gold-tint);color:#8A6A17;}
+  .tag-mensagem{background:#EFE9E1;color:var(--muted);}
+  .post h3{margin:0 0 6px;font-size:17px;color:var(--ink);}
+  .post p{margin:0 0 10px;font-size:14px;line-height:1.55;color:#4A3A3D;white-space:pre-wrap;}
+  .post-foot{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .post-actions{display:flex;gap:8px;}
+  .post-actions button{
+    background:none;border:none;color:var(--muted);
+    cursor:pointer;font-size:12px;text-decoration:underline;
+  }
+  .post-actions button:hover{color:var(--burgundy);}
+
+  /* Birthdays card */
+  .bday-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:8px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .bday-item:last-child{border-bottom:none;}
+  .bday-date{
+    width:38px;
+    text-align:center;
+    background:var(--gold-tint);
+    color:var(--burgundy-dark);
+    font-weight:700;
+    font-size:13px;
+    border-radius:6px;
+    padding:4px 0;
+  }
+  .bday-name{font-size:13.5px;font-weight:600;}
+  .bday-tag{font-size:10px;color:var(--gold);font-weight:700;}
+  .member-form{margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;}
+  .member-form input{
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:6px 8px;
+    font-size:12.5px;
+    flex:1;
+    min-width:90px;
+  }
+
+  /* ---------- Modal ---------- */
+  .overlay{
+    display:none;
+    position:fixed;inset:0;
+    background:rgba(43,27,31,0.45);
+    align-items:center;justify-content:center;
+    padding:20px;
+    z-index:50;
+  }
+  .overlay.active{display:flex;}
+  .modal{
+    background:var(--paper);
+    border-radius:12px;
+    width:100%;max-width:420px;
+    padding:24px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.25);
+    max-height:88vh;
+    overflow-y:auto;
+  }
+  .modal h3{margin-top:0;color:var(--burgundy-dark);}
+  .field{margin-bottom:12px;}
+  .field label{
+    display:block;font-size:12px;font-weight:600;
+    color:var(--muted);margin-bottom:4px;
+    text-transform:uppercase;letter-spacing:.4px;
+  }
+  .field input, .field select, .field textarea{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:7px;
+    padding:8px 10px;
+    font-size:14px;
+    font-family:inherit;
+    background:#fff;
+  }
+  .field textarea{resize:vertical;min-height:80px;}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .checkbox-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px;}
+  .modal-actions{display:flex;justify-content:space-between;align-items:center;margin-top:18px;}
+  .modal-actions .left{display:flex;gap:8px;}
+
+  /* ---------- Autenticação ---------- */
+  .auth-area{position:relative;display:flex;align-items:center;}
+  .auth-btn{
+    width:38px;height:38px;border-radius:50%;
+    background:rgba(255,255,255,0.12);
+    border:1px solid rgba(232,200,116,0.45);
+    color:var(--gold-light);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;font-size:16px;
+    transition:background .15s;
+  }
+  .auth-btn:hover{background:rgba(255,255,255,0.22);}
+  .auth-btn.logged{
+    background:var(--gold);
+    color:var(--burgundy-dark);
+    font-weight:700;font-size:14px;
+    border-color:var(--gold);
+  }
+  .auth-menu{
+    position:absolute;top:48px;right:0;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:10px;
+    box-shadow:0 12px 28px rgba(0,0,0,0.18);
+    min-width:190px;
+    padding:8px;
+    display:none;
+    z-index:60;
+  }
+  .auth-menu.active{display:block;}
+  .auth-menu .user-label{
+    font-size:11.5px;color:var(--muted);
+    padding:6px 10px 8px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:6px;
+    text-transform:uppercase;letter-spacing:.4px;
+  }
+  .auth-menu button{
+    display:block;width:100%;text-align:left;
+    background:none;border:none;padding:9px 10px;
+    font-size:13.5px;color:var(--ink);cursor:pointer;border-radius:6px;
+  }
+  .auth-menu button:hover{background:var(--gold-tint);}
+  .locked-note{
+    font-size:12px;color:var(--muted);font-style:italic;
+    margin-top:12px;
+    padding:8px 10px;
+    background:var(--gold-tint);
+    border-radius:7px;
+    display:none;
+  }
+  .error-msg{color:#A33;font-size:12.5px;margin:-6px 0 12px;display:none;}
+  .error-msg.active{display:block;}
+  .hint-note{font-size:11.5px;color:var(--muted);margin-top:10px;}
+  .users-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:7px 0;border-bottom:1px solid var(--line);font-size:13.5px;
+  }
+  .users-row:last-child{border-bottom:none;}
+
+  ::placeholder{color:#C9BBAA;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">Orquestra Pastor João Batista de Vasconcelos
+      <small>MÓDULO SOCIAL — AGENDA &amp; MURAL</small>
+    </div>
+    <div class="auth-area">
+      <button class="auth-btn" id="auth-btn" title="Entrar">🔒</button>
+      <div class="auth-menu" id="auth-menu">
+        <div class="user-label" id="auth-user-label"></div>
+        <button id="menu-manage-users">Gerenciar usuários</button>
+        <button id="menu-logout">Sair</button>
+      </div>
+    </div>
+  </div>
+  <nav class="tabs">
+    <button class="tab-btn active" data-view="agenda">📅 Agenda</button>
+    <button class="tab-btn" data-view="mural">📣 Mural de Publicações</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ===================== AGENDA ===================== -->
+  <section id="view-agenda" class="view active">
+    <div class="layout">
+      <div class="card">
+        <div class="agenda-head">
+          <h2 id="month-label">Mês</h2>
+          <div class="month-nav">
+            <button id="prev-month">‹</button>
+            <button class="today-btn" id="go-today">Hoje</button>
+            <button id="next-month">›</button>
+          </div>
+        </div>
+        <table class="calendar">
+          <thead>
+            <tr>
+              <th>Dom</th><th>Seg</th><th>Ter</th><th>Qua</th><th>Qui</th><th>Sex</th><th>Sáb</th>
+            </tr>
+          </thead>
+          <tbody id="calendar-body"></tbody>
+        </table>
+        <div class="legend">
+          <span><i class="dot cat-ensaio"></i>Ensaio</span>
+          <span><i class="dot cat-concerto"></i>Concerto/Apresentação</span>
+          <span><i class="dot cat-reuniao"></i>Reunião</span>
+          <span><i class="dot cat-outro"></i>Outro</span>
+        </div>
+      </div>
+
+      <div class="card upcoming">
+        <h3>Próximos eventos</h3>
+        <div id="upcoming-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== MURAL ===================== -->
+  <section id="view-mural" class="view">
+    <div class="layout">
+      <div>
+        <div class="mural-head">
+          <h2>Mural de Publicações</h2>
+          <button class="btn" id="new-post-btn">+ Nova publicação</button>
+        </div>
+        <div id="posts-list"></div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:18px;">
+          <h3 style="margin-top:0;font-size:16px;color:var(--burgundy-dark);">🎂 Aniversariantes do mês</h3>
+          <div id="bday-list"></div>
+          <div class="member-form" id="member-form">
+            <input type="text" id="member-name" placeholder="Nome do integrante">
+            <input type="date" id="member-bday">
+            <button class="btn small" id="add-member-btn">Adicionar</button>
+          </div>
+          <p class="locked-note" id="member-form-locked">Faça login para cadastrar aniversariantes.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== Modal: Evento ===== -->
+<div class="overlay" id="event-overlay">
+  <div class="modal">
+    <h3 id="event-modal-title">Novo evento</h3>
+    <input type="hidden" id="event-id">
+    <div class="field">
+      <label>Título</label>
+      <input type="text" id="event-title" placeholder="Ex: Ensaio geral">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Data</label>
+        <input type="date" id="event-date">
+      </div>
+      <div class="field">
+        <label>Horário</label>
+        <input type="time" id="event-time">
+      </div>
+    </div>
+    <div class="field">
+      <label>Categoria</label>
+      <select id="event-category">
+        <option value="ensaio">Ensaio</option>
+        <option value="concerto">Concerto/Apresentação</option>
+        <option value="reuniao">Reunião</option>
+        <option value="outro">Outro</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Local</label>
+      <input type="text" id="event-location" placeholder="Ex: Sede da orquestra">
+    </div>
+    <div class="field">
+      <label>Descrição</label>
+      <textarea id="event-description" placeholder="Detalhes do evento (opcional)"></textarea>
+    </div>
+    <div class="modal-actions">
+      <div class="left">
+        <button class="btn secondary" id="event-cancel">Cancelar</button>
+        <button class="btn secondary" id="event-delete" style="display:none;color:#a33;border-color:#a33;">Excluir</button>
+      </div>
+      <button class="btn" id="event-save">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: Publicação ===== -->
+<div class="overlay" id="post-overlay">
+  <div class="modal">
+    <h3 id="post-modal-title">Nova publicação</h3>
+    <input type="hidden" id="post-id">
+    <div class="field">
+      <label>Título</label>
+      <input type="text" id="post-title" placeholder="Ex: Novo horário de ensaios">
+    </div>
+    <div class="field">
+      <label>Categoria</label>
+      <select id="post-category">
+        <option value="aviso">Aviso</option>
+        <option value="lembrete">Lembrete</option>
+        <option value="mensagem">Mensagem da diretoria</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Autor</label>
+      <input type="text" id="post-author" placeholder="Ex: Diretoria">
+    </div>
+    <div class="field">
+      <label>Mensagem</label>
+      <textarea id="post-body" placeholder="Escreva a publicação..."></textarea>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="post-pinned">
+      <label for="post-pinned" style="margin:0;">Fixar no topo do mural</label>
+    </div>
+    <div class="modal-actions">
+      <div class="left">
+        <button class="btn secondary" id="post-cancel">Cancelar</button>
+        <button class="btn secondary" id="post-delete" style="display:none;color:#a33;border-color:#a33;">Excluir</button>
+      </div>
+      <button class="btn" id="post-save">Publicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: Login ===== -->
+<div class="overlay" id="login-overlay">
+  <div class="modal" style="max-width:340px;">
+    <h3>Entrar</h3>
+    <p class="error-msg" id="login-error">Usuário ou senha incorretos.</p>
+    <div class="field">
+      <label>Usuário</label>
+      <input type="text" id="login-username" placeholder="usuário" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input type="password" id="login-password" placeholder="senha" autocomplete="current-password">
+    </div>
+    <p class="hint-note">Acesso restrito à diretoria. A visualização da agenda e do mural não exige login.</p>
+    <div class="modal-actions">
+      <button class="btn secondary" id="login-cancel">Cancelar</button>
+      <button class="btn" id="login-submit">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: Gerenciar usuários ===== -->
+<div class="overlay" id="users-overlay">
+  <div class="modal">
+    <h3>Gerenciar usuários</h3>
+    <div id="users-list"></div>
+    <div class="field-row" style="margin-top:16px;">
+      <div class="field">
+        <label>Novo usuário</label>
+        <input type="text" id="new-user-username" placeholder="usuário">
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="new-user-password" placeholder="senha">
+      </div>
+    </div>
+    <button class="btn small" id="add-user-btn">Adicionar usuário</button>
+    <div class="modal-actions">
+      <button class="btn secondary" id="users-close">Fechar</button>
+      <span></span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // --- CONFIGURAÇÃO DO SUPABASE ---
+  const SUPABASE_URL = 'SUA_URL_DO_SUPABASE';
+  const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON_SUPABASE';
+
+  const { createClient } = supabase;
+  const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const SESSION_KEY = "opjbv_social_session";
+
+  let events = [];
+  let posts = [];
+  let members = [];
+  let users = [];
+
+  function isAuthenticated(){ return !!sessionStorage.getItem(SESSION_KEY); }
+  function currentUser(){ return sessionStorage.getItem(SESSION_KEY); }
+
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+  const MONTH_NAMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  const CAT_LABELS = {ensaio:"Ensaio", concerto:"Concerto/Apresentação", reuniao:"Reunião", outro:"Outro"};
+  const TAG_LABELS = {aviso:"Aviso", lembrete:"Lembrete", mensagem:"Mensagem da diretoria"};
+
+  const todayDate = new Date();
+  let viewYear = todayDate.getFullYear();
+  let viewMonth = todayDate.getMonth();
+
+  function pad(n){ return n.toString().padStart(2,"0"); }
+  function fmtISO(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
+  function todayISO(){ return fmtISO(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()); }
+
+  // --- CARREGAR DADOS DO SUPABASE ---
+  async function carregarDadosDoBanco() {
+    try {
+      const [resEv, resPost, resMem, resUsr] = await Promise.all([
+        _supabase.from('opjbv_events').select('*'),
+        _supabase.from('opjbv_posts').select('*'),
+        _supabase.from('opjbv_members').select('*'),
+        _supabase.from('opjbv_users').select('*')
+      ]);
+
+      events = resEv.data || [];
+      posts = resPost.data || [];
+      members = resMem.data || [];
+      users = resUsr.data || [];
+
+      if(users.length === 0){
+        users = [{username:"diretoria", password:"opjbv2026"}];
+      }
+
+      refreshAll();
+    } catch(err) {
+      console.error("Erro ao carregar dados do Supabase:", err);
+      toast("Erro de conexão com o banco de dados.");
+    }
+  }
+
+  /* ---------------- Tabs ---------------- */
+  document.querySelectorAll(".tab-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("view-"+btn.dataset.view).classList.add("active");
+    });
+  });
+
+  /* ---------------- Calendar ---------------- */
+  function renderCalendar(){
+    document.getElementById("month-label").textContent = `${MONTH_NAMES[viewMonth]} de ${viewYear}`;
+    const body = document.getElementById("calendar-body");
+    body.innerHTML = "";
+
+    const firstDay = new Date(viewYear, viewMonth, 1);
+    const startOffset = firstDay.getDay();
+    const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+    const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+    let cells = [];
+    for(let i=startOffset-1;i>=0;i--){
+      cells.push({day: daysInPrevMonth - i, other:true, y:viewMonth===0?viewYear-1:viewYear, m:viewMonth===0?11:viewMonth-1});
+    }
+    for(let d=1; d<=daysInMonth; d++){
+      cells.push({day:d, other:false, y:viewYear, m:viewMonth});
+    }
+    while(cells.length % 7 !== 0 || cells.length < 42){
+      const last = cells[cells.length-1];
+      const nd = new Date(last.y, last.m, last.day+1);
+      cells.push({day: nd.getDate(), other:true, y: nd.getFullYear(), m: nd.getMonth()});
+      if(cells.length>=42) break;
+    }
+
+    let row;
+    cells.forEach((cell, idx)=>{
+      if(idx % 7 === 0){
+        row = document.createElement("tr");
+        body.appendChild(row);
+      }
+      const td = document.createElement("td");
+      const iso = fmtISO(cell.y, cell.m, cell.day);
+      if(cell.other) td.classList.add("other-month");
+      if(iso === todayISO()) td.classList.add("today");
+
+      const num = document.createElement("div");
+      num.className = "day-num";
+      num.textContent = cell.day;
+      td.appendChild(num);
+
+      events.filter(e=>e.date===iso).sort((a,b)=>(a.time||"").localeCompare(b.time||"")).forEach(ev=>{
+        const chip = document.createElement("div");
+        chip.className = "event-chip cat-"+ev.category;
+        chip.textContent = (ev.time ? ev.time+" · " : "") + ev.title;
+        chip.addEventListener("click",(e)=>{ e.stopPropagation(); openEventModal(ev); });
+        td.appendChild(chip);
+      });
+
+      td.addEventListener("click", ()=>{
+        if(!isAuthenticated()){ toast("Faça login para cadastrar eventos."); return; }
+        openEventModal(null, iso);
+      });
+      row.appendChild(td);
+    });
+
+    renderUpcoming();
+  }
+
+  function renderUpcoming(){
+    const list = document.getElementById("upcoming-list");
+    const upcoming = events
+      .filter(e=> e.date >= todayISO())
+      .sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time))
+      .slice(0,6);
+    if(upcoming.length===0){
+      list.innerHTML = '<p class="empty-note">Nenhum evento futuro cadastrado.</p>';
+      return;
+    }
+    list.innerHTML = upcoming.map(ev=>{
+      const d = new Date(ev.date+"T00:00:00");
+      const label = `${pad(d.getDate())} ${MONTH_NAMES[d.getMonth()].slice(0,3).toUpperCase()}`;
+      return `<div class="upcoming-item">
+        <div class="upcoming-date">${label}${ev.time ? " · "+ev.time : ""}</div>
+        <div class="upcoming-title">${escapeHTML(ev.title)}</div>
+        <div class="upcoming-meta">${CAT_LABELS[ev.category]||""}${ev.location ? " — "+escapeHTML(ev.location) : ""}</div>
+      </div>`;
+    }).join("");
+  }
+
+  document.getElementById("prev-month").addEventListener("click", ()=>{
+    viewMonth--; if(viewMonth<0){viewMonth=11; viewYear--;}
+    renderCalendar();
+  });
+  document.getElementById("next-month").addEventListener("click", ()=>{
+    viewMonth++; if(viewMonth>11){viewMonth=0; viewYear++;}
+    renderCalendar();
+  });
+  document.getElementById("go-today").addEventListener("click", ()=>{
+    viewYear = todayDate.getFullYear(); viewMonth = todayDate.getMonth();
+    renderCalendar();
+  });
+
+  /* ---------------- Event modal ---------------- */
+  const eventOverlay = document.getElementById("event-overlay");
+  function openEventModal(ev, presetDate){
+    const authed = isAuthenticated();
+    const readOnly = !!ev && !authed;
+    document.getElementById("event-modal-title").textContent = readOnly ? "Detalhes do evento" : (ev ? "Editar evento" : "Novo evento");
+    document.getElementById("event-id").value = ev ? ev.id : "";
+    document.getElementById("event-title").value = ev ? ev.title : "";
+    document.getElementById("event-date").value = ev ? ev.date : (presetDate || todayISO());
+    document.getElementById("event-time").value = ev ? (ev.time||"") : "";
+    document.getElementById("event-category").value = ev ? ev.category : "ensaio";
+    document.getElementById("event-location").value = ev ? (ev.location||"") : "";
+    document.getElementById("event-description").value = ev ? (ev.description||"") : "";
+    ["event-title","event-date","event-time","event-category","event-location","event-description"].forEach(id=>{
+      document.getElementById(id).disabled = readOnly;
+    });
+    document.getElementById("event-delete").style.display = (ev && authed) ? "inline-block" : "none";
+    document.getElementById("event-save").style.display = readOnly ? "none" : "inline-block";
+    document.getElementById("event-cancel").textContent = readOnly ? "Fechar" : "Cancelar";
+    eventOverlay.classList.add("active");
+  }
+  document.getElementById("event-cancel").addEventListener("click", ()=> eventOverlay.classList.remove("active"));
+  eventOverlay.addEventListener("click", (e)=>{ if(e.target===eventOverlay) eventOverlay.classList.remove("active"); });
+
+  document.getElementById("event-save").addEventListener("click", async ()=>{
+    const title = document.getElementById("event-title").value.trim();
+    const date = document.getElementById("event-date").value;
+    if(!title || !date){ alert("Preencha ao menos o título e a data do evento."); return; }
+    const id = document.getElementById("event-id").value;
+    const data = {
+      id: id || uid(),
+      title,
+      date,
+      time: document.getElementById("event-time").value || null,
+      category: document.getElementById("event-category").value,
+      location: document.getElementById("event-location").value.trim() || null,
+      description: document.getElementById("event-description").value.trim() || null
+    };
+
+    const { error } = await _supabase.from('opjbv_events').upsert(data);
+    if(error){ alert("Erro ao salvar evento."); return; }
+
+    if(id){
+      events = events.map(e=> e.id===id ? data : e);
+    } else {
+      events.push(data);
+    }
+    eventOverlay.classList.remove("active");
+    renderCalendar();
+  });
+
+  document.getElementById("event-delete").addEventListener("click", async ()=>{
+    const id = document.getElementById("event-id").value;
+    if(id && confirm("Excluir este evento?")){
+      const { error } = await _supabase.from('opjbv_events').delete().eq('id', id);
+      if(error){ alert("Erro ao excluir."); return; }
+      events = events.filter(e=>e.id!==id);
+      eventOverlay.classList.remove("active");
+      renderCalendar();
+    }
+  });
+
+  /* ---------------- Mural / Publicações ---------------- */
+  function renderPosts(){
+    const list = document.getElementById("posts-list");
+    if(posts.length===0){
+      list.innerHTML = '<div class="card"><p class="empty-note">Nenhuma publicação ainda. Use "Nova publicação" para começar.</p></div>';
+      return;
+    }
+    const sorted = [...posts].sort((a,b)=>{
+      if(a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+    list.innerHTML = sorted.map(p=>{
+      const d = new Date(p.created_at);
+      const dateStr = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+      return `<div class="post ${p.pinned?"pinned":""}" data-id="${p.id}">
+        ${p.pinned ? '<span class="pin-badge">FIXADO</span>' : ""}
+        <span class="post-tag tag-${p.category}">${TAG_LABELS[p.category]}</span>
+        <h3>${escapeHTML(p.title)}</h3>
+        <p>${escapeHTML(p.body)}</p>
+        <div class="post-foot">
+          <span>${escapeHTML(p.author||"Diretoria")} · ${dateStr}</span>
+          ${isAuthenticated() ? `<span class="post-actions">
+            <button data-action="edit">Editar</button>
+            <button data-action="delete">Excluir</button>
+          </span>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+
+    if(!isAuthenticated()) return;
+
+    list.querySelectorAll(".post").forEach(el=>{
+      const id = el.dataset.id;
+      el.querySelector('[data-action="edit"]').addEventListener("click", ()=>{
+        openPostModal(posts.find(p=>p.id===id));
+      });
+      el.querySelector('[data-action="delete"]').addEventListener("click", async ()=>{
+        if(confirm("Excluir esta publicação?")){
+          const { error } = await _supabase.from('opjbv_posts').delete().eq('id', id);
+          if(error){ alert("Erro ao excluir."); return; }
+          posts = posts.filter(p=>p.id!==id);
+          renderPosts();
+        }
+      });
+    });
+  }
+
+  const postOverlay = document.getElementById("post-overlay");
+  function openPostModal(p){
+    document.getElementById("post-modal-title").textContent = p ? "Editar publicação" : "Nova publicação";
+    document.getElementById("post-id").value = p ? p.id : "";
+    document.getElementById("post-title").value = p ? p.title : "";
+    document.getElementById("post-category").value = p ? p.category : "aviso";
+    document.getElementById("post-author").value = p ? (p.author||"") : "";
+    document.getElementById("post-body").value = p ? p.body : "";
+    document.getElementById("post-pinned").checked = p ? !!p.pinned : false;
+    document.getElementById("post-delete").style.display = p ? "inline-block" : "none";
+    postOverlay.classList.add("active");
+  }
+  document.getElementById("new-post-btn").addEventListener("click", ()=>{
+    if(!isAuthenticated()){ toast("Faça login para publicar."); return; }
+    openPostModal(null);
+  });
+  document.getElementById("post-cancel").addEventListener("click", ()=> postOverlay.classList.remove("active"));
+  postOverlay.addEventListener("click",(e)=>{ if(e.target===postOverlay) postOverlay.classList.remove("active"); });
+
+  document.getElementById("post-save").addEventListener("click", async ()=>{
+    const title = document.getElementById("post-title").value.trim();
+    const body = document.getElementById("post-body").value.trim();
+    if(!title || !body){ alert("Preencha o título e a mensagem da publicação."); return; }
+    const id = document.getElementById("post-id").value;
+    const existing = id ? posts.find(p=>p.id===id) : null;
+    const data = {
+      id: id || uid(),
+      title,
+      body,
+      category: document.getElementById("post-category").value,
+      author: document.getElementById("post-author").value.trim() || null,
+      pinned: document.getElementById("post-pinned").checked,
+      created_at: existing ? existing.created_at : new Date().toISOString()
+    };
+
+    const { error } = await _supabase.from('opjbv_posts').upsert(data);
+    if(error){ alert("Erro ao salvar publicação."); return; }
+
+    if(id){
+      posts = posts.map(p=> p.id===id ? data : p);
+    } else {
+      posts.push(data);
+    }
+    postOverlay.classList.remove("active");
+    renderPosts();
+  });
+
+  document.getElementById("post-delete").addEventListener("click", async ()=>{
+    const id = document.getElementById("post-id").value;
+    if(id && confirm("Excluir esta publicação?")){
+      const { error } = await _supabase.from('opjbv_posts').delete().eq('id', id);
+      if(error){ alert("Erro ao excluir."); return; }
+      posts = posts.filter(p=>p.id!==id);
+      postOverlay.classList.remove("active");
+      renderPosts();
+    }
+  });
+
+  /* ---------------- Aniversariantes ---------------- */
+  function renderBirthdays(){
+    const list = document.getElementById("bday-list");
+    const curMonth = todayDate.getMonth();
+    const matches = members
+      .filter(m=>{
+        const bd = new Date(m.birthdate+"T00:00:00");
+        return bd.getMonth() === curMonth;
+      })
+      .sort((a,b)=> new Date(a.birthdate).getDate() - new Date(b.birthdate).getDate());
+
+    if(matches.length===0){
+      list.innerHTML = '<p class="empty-note">Nenhum aniversariante cadastrado para este mês.</p>';
+      return;
+    }
+    list.innerHTML = matches.map(m=>{
+      const bd = new Date(m.birthdate+"T00:00:00");
+      const isToday = bd.getDate()===todayDate.getDate() && bd.getMonth()===todayDate.getMonth();
+      return `<div class="bday-item">
+        <div class="bday-date">${pad(bd.getDate())}</div>
+        <div>
+          <div class="bday-name">${escapeHTML(m.name)}</div>
+          ${isToday ? '<div class="bday-tag">HOJE 🎉</div>' : ""}
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  document.getElementById("add-member-btn").addEventListener("click", async ()=>{
+    if(!isAuthenticated()){ toast("Faça login para cadastrar aniversariantes."); return; }
+    const name = document.getElementById("member-name").value.trim();
+    const bday = document.getElementById("member-bday").value;
+    if(!name || !bday){ alert("Preencha o nome e a data de nascimento."); return; }
+    
+    const novoMembro = {id: uid(), name, birthdate: bday};
+    const { error } = await _supabase.from('opjbv_members').insert(novoMembro);
+    if(error){ alert("Erro ao adicionar membro."); return; }
+
+    members.push(novoMembro);
+    document.getElementById("member-name").value = "";
+    document.getElementById("member-bday").value = "";
+    renderBirthdays();
+  });
+
+  /* ---------------- Utils ---------------- */
+  function escapeHTML(str){
+    const div = document.createElement("div");
+    div.textContent = str || "";
+    return div.innerHTML;
+  }
+
+  let toastTimer = null;
+  function toast(msg){
+    let el = document.getElementById("toast-el");
+    if(!el){
+      el = document.createElement("div");
+      el.id = "toast-el";
+      el.style.cssText = "position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--burgundy-dark);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;box-shadow:0 8px 20px rgba(0,0,0,0.25);z-index:100;opacity:0;transition:opacity .2s;";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.opacity = "1";
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>{ el.style.opacity = "0"; }, 2200);
+  }
+
+  /* ---------------- Autenticação ---------------- */
+  const loginOverlay = document.getElementById("login-overlay");
+  const usersOverlay = document.getElementById("users-overlay");
+  const authMenu = document.getElementById("auth-menu");
+
+  function renderAuthUI(){
+    const btn = document.getElementById("auth-btn");
+    const label = document.getElementById("auth-user-label");
+    if(isAuthenticated()){
+      btn.textContent = currentUser().charAt(0).toUpperCase();
+      btn.classList.add("logged");
+      btn.title = "Logado como " + currentUser();
+      label.textContent = "Logado como " + currentUser();
+    } else {
+      btn.textContent = "🔒";
+      btn.classList.remove("logged");
+      btn.title = "Entrar";
+      label.textContent = "";
+    }
+    document.getElementById("new-post-btn").style.display = isAuthenticated() ? "inline-block" : "none";
+    document.getElementById("member-form").style.display = isAuthenticated() ? "flex" : "none";
+    document.getElementById("member-form-locked").style.display = isAuthenticated() ? "none" : "block";
+  }
+
+  function refreshAll(){
+    renderAuthUI();
+    renderCalendar();
+    renderPosts();
+    renderBirthdays();
+  }
+
+  document.getElementById("auth-btn").addEventListener("click", ()=>{
+    if(isAuthenticated()){
+      authMenu.classList.toggle("active");
+    } else {
+      document.getElementById("login-username").value = "";
+      document.getElementById("login-password").value = "";
+      document.getElementById("login-error").classList.remove("active");
+      loginOverlay.classList.add("active");
+    }
+  });
+  document.addEventListener("click", (e)=>{
+    if(!document.querySelector(".auth-area").contains(e.target)){
+      authMenu.classList.remove("active");
+    }
+  });
+
+  document.getElementById("login-cancel").addEventListener("click", ()=> loginOverlay.classList.remove("active"));
+  loginOverlay.addEventListener("click", (e)=>{ if(e.target===loginOverlay) loginOverlay.classList.remove("active"); });
+
+  function doLogin(){
+    const u = document.getElementById("login-username").value.trim();
+    const p = document.getElementById("login-password").value;
+    const match = users.find(usr=> usr.username===u && usr.password===p);
+    if(!match){
+      document.getElementById("login-error").classList.add("active");
+      return;
+    }
+    sessionStorage.setItem(SESSION_KEY, match.username);
+    loginOverlay.classList.remove("active");
+    refreshAll();
+  }
+  document.getElementById("login-submit").addEventListener("click", doLogin);
+  document.getElementById("login-password").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
+  document.getElementById("login-username").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
+
+  document.getElementById("menu-logout").addEventListener("click", ()=>{
+    sessionStorage.removeItem(SESSION_KEY);
+    authMenu.classList.remove("active");
+    refreshAll();
+  });
+
+  document.getElementById("menu-manage-users").addEventListener("click", ()=>{
+    authMenu.classList.remove("active");
+    renderUsersList();
+    usersOverlay.classList.add("active");
+  });
+  document.getElementById("users-close").addEventListener("click", ()=> usersOverlay.classList.remove("active"));
+  usersOverlay.addEventListener("click", (e)=>{ if(e.target===usersOverlay) usersOverlay.classList.remove("active"); });
+
+  function renderUsersList(){
+    const list = document.getElementById("users-list");
+    list.innerHTML = users.map(u=>{
+      return `<div class="users-row">
+        <span>${escapeHTML(u.username)}</span>
+        <button class="btn small secondary" data-remove="${escapeHTML(u.username)}" ${users.length<=1?"disabled":""}>Remover</button>
+      </div>`;
+    }).join("");
+    list.querySelectorAll("[data-remove]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const uname = btn.dataset.remove;
+        if(users.length<=1) return;
+        if(!confirm(`Remover o usuário "${uname}"?`)) return;
+        
+        const { error } = await _supabase.from('opjbv_users').delete().eq('username', uname);
+        if(error){ alert("Erro ao remover usuário."); return; }
+
+        const wasSelf = currentUser()===uname;
+        users = users.filter(u=>u.username!==uname);
+        if(wasSelf){
+          sessionStorage.removeItem(SESSION_KEY);
+          usersOverlay.classList.remove("active");
+          refreshAll();
+          return;
+        }
+        renderUsersList();
+      });
+    });
+  }
+
+  document.getElementById("add-user-btn").addEventListener("click", async ()=>{
+    const uname = document.getElementById("new-user-username").value.trim();
+    const pwd = document.getElementById("new-user-password").value;
+    if(!uname || !pwd){ alert("Preencha usuário e senha."); return; }
+    if(users.some(u=>u.username===uname)){ alert("Já existe um usuário com este nome."); return; }
+
+    const novoUser = {username: uname, password: pwd};
+    const { error } = await _supabase.from('opjbv_users').insert(novoUser);
+    if(error){ alert("Erro ao cadastrar usuário."); return; }
+
+    users.push(novoUser);
+    document.getElementById("new-user-username").value = "";
+    document.getElementById("new-user-password").value = "";
+    renderUsersList();
+  });
+
+  // Inicialização puxando do Supabase
+  carregarDadosDoBanco();
+})();
+</script>
+</body>
+</html>
