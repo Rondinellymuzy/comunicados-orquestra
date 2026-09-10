@@ -1,0 +1,527 @@
+<script>
+(function(){
+  "use strict";
+
+  // Configuração do Supabase (Substitua pelas suas chaves do projeto)
+  const SUPABASE_URL = 'SUA_URL_DO_SUPABASE';
+  const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON_SUPABASE';
+
+  const { createClient } = supabase;
+  const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const SESSION_KEY = "opjbv_social_session";
+
+  let events = [];
+  let posts = [];
+  let members = [];
+  let users = [];
+
+  function isAuthenticated(){ return !!sessionStorage.getItem(SESSION_KEY); }
+  function currentUser(){ return sessionStorage.getItem(SESSION_KEY); }
+
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+  const MONTH_NAMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  const CAT_LABELS = {ensaio:"Ensaio", concerto:"Concerto/Apresentação", reuniao:"Reunião", outro:"Outro"};
+  const TAG_LABELS = {aviso:"Aviso", lembrete:"Lembrete", mensagem:"Mensagem da diretoria"};
+
+  const todayDate = new Date();
+  let viewYear = todayDate.getFullYear();
+  let viewMonth = todayDate.getMonth();
+
+  function pad(n){ return n.toString().padStart(2,"0"); }
+  function fmtISO(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
+  function todayISO(){ return fmtISO(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()); }
+
+  // --- CARREGAR DADOS DO SUPABASE ---
+  async function carregarDadosDoBanco() {
+    try {
+      const [resEv, resPost, resMem, resUsr] = await Promise.all([
+        _supabase.from('opjbv_events').select('*'),
+        _supabase.from('opjbv_posts').select('*'),
+        _supabase.from('opjbv_members').select('*'),
+        _supabase.from('opjbv_users').select('*')
+      ]);
+
+      events = resEv.data || [];
+      posts = resPost.data || [];
+      members = resMem.data || [];
+      users = resUsr.data || [];
+
+      if(users.length === 0){
+        users = [{username:"diretoria", password:"opjbv2026"}];
+      }
+
+      refreshAll();
+    } catch(err) {
+      console.error("Erro ao carregar dados do Supabase:", err);
+      toast("Erro de conexão com o banco de dados.");
+    }
+  }
+
+  /* ---------------- Tabs ---------------- */
+  document.querySelectorAll(".tab-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("view-"+btn.dataset.view).classList.add("active");
+    });
+  });
+
+  /* ---------------- Calendar ---------------- */
+  function renderCalendar(){
+    document.getElementById("month-label").textContent = `${MONTH_NAMES[viewMonth]} de ${viewYear}`;
+    const body = document.getElementById("calendar-body");
+    body.innerHTML = "";
+
+    const firstDay = new Date(viewYear, viewMonth, 1);
+    const startOffset = firstDay.getDay();
+    const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+    const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+    let cells = [];
+    for(let i=startOffset-1;i>=0;i--){
+      cells.push({day: daysInPrevMonth - i, other:true, y:viewMonth===0?viewYear-1:viewYear, m:viewMonth===0?11:viewMonth-1});
+    }
+    for(let d=1; d<=daysInMonth; d++){
+      cells.push({day:d, other:false, y:viewYear, m:viewMonth});
+    }
+    while(cells.length % 7 !== 0 || cells.length < 42){
+      const last = cells[cells.length-1];
+      const nd = new Date(last.y, last.m, last.day+1);
+      cells.push({day: nd.getDate(), other:true, y: nd.getFullYear(), m: nd.getMonth()});
+      if(cells.length>=42) break;
+    }
+
+    let row;
+    cells.forEach((cell, idx)=>{
+      if(idx % 7 === 0){
+        row = document.createElement("tr");
+        body.appendChild(row);
+      }
+      const td = document.createElement("td");
+      const iso = fmtISO(cell.y, cell.m, cell.day);
+      if(cell.other) td.classList.add("other-month");
+      if(iso === todayISO()) td.classList.add("today");
+
+      const num = document.createElement("div");
+      num.className = "day-num";
+      num.textContent = cell.day;
+      td.appendChild(num);
+
+      events.filter(e=>e.date===iso).sort((a,b)=>(a.time||"").localeCompare(b.time||"")).forEach(ev=>{
+        const chip = document.createElement("div");
+        chip.className = "event-chip cat-"+ev.category;
+        chip.textContent = (ev.time ? ev.time+" · " : "") + ev.title;
+        chip.addEventListener("click",(e)=>{ e.stopPropagation(); openEventModal(ev); });
+        td.appendChild(chip);
+      });
+
+      td.addEventListener("click", ()=>{
+        if(!isAuthenticated()){ toast("Faça login para cadastrar eventos."); return; }
+        openEventModal(null, iso);
+      });
+      row.appendChild(td);
+    });
+
+    renderUpcoming();
+  }
+
+  function renderUpcoming(){
+    const list = document.getElementById("upcoming-list");
+    const upcoming = events
+      .filter(e=> e.date >= todayISO())
+      .sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time))
+      .slice(0,6);
+    if(upcoming.length===0){
+      list.innerHTML = '<p class="empty-note">Nenhum evento futuro cadastrado.</p>';
+      return;
+    }
+    list.innerHTML = upcoming.map(ev=>{
+      const d = new Date(ev.date+"T00:00:00");
+      const label = `${pad(d.getDate())} ${MONTH_NAMES[d.getMonth()].slice(0,3).toUpperCase()}`;
+      return `<div class="upcoming-item">
+        <div class="upcoming-date">${label}${ev.time ? " · "+ev.time : ""}</div>
+        <div class="upcoming-title">${escapeHTML(ev.title)}</div>
+        <div class="upcoming-meta">${CAT_LABELS[ev.category]||""}${ev.location ? " — "+escapeHTML(ev.location) : ""}</div>
+      </div>`;
+    }).join("");
+  }
+
+  document.getElementById("prev-month").addEventListener("click", ()=>{
+    viewMonth--; if(viewMonth<0){viewMonth=11; viewYear--;}
+    renderCalendar();
+  });
+  document.getElementById("next-month").addEventListener("click", ()=>{
+    viewMonth++; if(viewMonth>11){viewMonth=0; viewYear++;}
+    renderCalendar();
+  });
+  document.getElementById("go-today").addEventListener("click", ()=>{
+    viewYear = todayDate.getFullYear(); viewMonth = todayDate.getMonth();
+    renderCalendar();
+  });
+
+  /* ---------------- Event modal ---------------- */
+  const eventOverlay = document.getElementById("event-overlay");
+  function openEventModal(ev, presetDate){
+    const authed = isAuthenticated();
+    const readOnly = !!ev && !authed;
+    document.getElementById("event-modal-title").textContent = readOnly ? "Detalhes do evento" : (ev ? "Editar evento" : "Novo evento");
+    document.getElementById("event-id").value = ev ? ev.id : "";
+    document.getElementById("event-title").value = ev ? ev.title : "";
+    document.getElementById("event-date").value = ev ? ev.date : (presetDate || todayISO());
+    document.getElementById("event-time").value = ev ? (ev.time||"") : "";
+    document.getElementById("event-category").value = ev ? ev.category : "ensaio";
+    document.getElementById("event-location").value = ev ? (ev.location||"") : "";
+    document.getElementById("event-description").value = ev ? (ev.description||"") : "";
+    ["event-title","event-date","event-time","event-category","event-location","event-description"].forEach(id=>{
+      document.getElementById(id).disabled = readOnly;
+    });
+    document.getElementById("event-delete").style.display = (ev && authed) ? "inline-block" : "none";
+    document.getElementById("event-save").style.display = readOnly ? "none" : "inline-block";
+    document.getElementById("event-cancel").textContent = readOnly ? "Fechar" : "Cancelar";
+    eventOverlay.classList.add("active");
+  }
+  document.getElementById("event-cancel").addEventListener("click", ()=> eventOverlay.classList.remove("active"));
+  eventOverlay.addEventListener("click", (e)=>{ if(e.target===eventOverlay) eventOverlay.classList.remove("active"); });
+
+  document.getElementById("event-save").addEventListener("click", async ()=>{
+    const title = document.getElementById("event-title").value.trim();
+    const date = document.getElementById("event-date").value;
+    if(!title || !date){ alert("Preencha ao menos o título e a data do evento."); return; }
+    const id = document.getElementById("event-id").value;
+    const data = {
+      id: id || uid(),
+      title,
+      date,
+      time: document.getElementById("event-time").value || null,
+      category: document.getElementById("event-category").value,
+      location: document.getElementById("event-location").value.trim() || null,
+      description: document.getElementById("event-description").value.trim() || null
+    };
+
+    const { error } = await _supabase.from('opjbv_events').upsert(data);
+    if(error){ alert("Erro ao salvar evento."); return; }
+
+    if(id){
+      events = events.map(e=> e.id===id ? data : e);
+    } else {
+      events.push(data);
+    }
+    eventOverlay.classList.remove("active");
+    renderCalendar();
+  });
+
+  document.getElementById("event-delete").addEventListener("click", async ()=>{
+    const id = document.getElementById("event-id").value;
+    if(id && confirm("Excluir este evento?")){
+      const { error } = await _supabase.from('opjbv_events').delete().eq('id', id);
+      if(error){ alert("Erro ao excluir."); return; }
+      events = events.filter(e=>e.id!==id);
+      eventOverlay.classList.remove("active");
+      renderCalendar();
+    }
+  });
+
+  /* ---------------- Mural / Publicações ---------------- */
+  function renderPosts(){
+    const list = document.getElementById("posts-list");
+    if(posts.length===0){
+      list.innerHTML = '<div class="card"><p class="empty-note">Nenhuma publicação ainda. Use "Nova publicação" para começar.</p></div>';
+      return;
+    }
+    const sorted = [...posts].sort((a,b)=>{
+      if(a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+    list.innerHTML = sorted.map(p=>{
+      const d = new Date(p.created_at);
+      const dateStr = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+      return `<div class="post ${p.pinned?"pinned":""}" data-id="${p.id}">
+        ${p.pinned ? '<span class="pin-badge">FIXADO</span>' : ""}
+        <span class="post-tag tag-${p.category}">${TAG_LABELS[p.category]}</span>
+        <h3>${escapeHTML(p.title)}</h3>
+        <p>${escapeHTML(p.body)}</p>
+        <div class="post-foot">
+          <span>${escapeHTML(p.author||"Diretoria")} · ${dateStr}</span>
+          ${isAuthenticated() ? `<span class="post-actions">
+            <button data-action="edit">Editar</button>
+            <button data-action="delete">Excluir</button>
+          </span>` : ""}
+        </div>
+      </div>`;
+    }).join("");
+
+    if(!isAuthenticated()) return;
+
+    list.querySelectorAll(".post").forEach(el=>{
+      const id = el.dataset.id;
+      el.querySelector('[data-action="edit"]').addEventListener("click", ()=>{
+        openPostModal(posts.find(p=>p.id===id));
+      });
+      el.querySelector('[data-action="delete"]').addEventListener("click", async ()=>{
+        if(confirm("Excluir esta publicação?")){
+          const { error } = await _supabase.from('opjbv_posts').delete().eq('id', id);
+          if(error){ alert("Erro ao excluir."); return; }
+          posts = posts.filter(p=>p.id!==id);
+          renderPosts();
+        }
+      });
+    });
+  }
+
+  const postOverlay = document.getElementById("post-overlay");
+  function openPostModal(p){
+    document.getElementById("post-modal-title").textContent = p ? "Editar publicação" : "Nova publicação";
+    document.getElementById("post-id").value = p ? p.id : "";
+    document.getElementById("post-title").value = p ? p.title : "";
+    document.getElementById("post-category").value = p ? p.category : "aviso";
+    document.getElementById("post-author").value = p ? (p.author||"") : "";
+    document.getElementById("post-body").value = p ? p.body : "";
+    document.getElementById("post-pinned").checked = p ? !!p.pinned : false;
+    document.getElementById("post-delete").style.display = p ? "inline-block" : "none";
+    postOverlay.classList.add("active");
+  }
+  document.getElementById("new-post-btn").addEventListener("click", ()=>{
+    if(!isAuthenticated()){ toast("Faça login para publicar."); return; }
+    openPostModal(null);
+  });
+  document.getElementById("post-cancel").addEventListener("click", ()=> postOverlay.classList.remove("active"));
+  postOverlay.addEventListener("click",(e)=>{ if(e.target===postOverlay) postOverlay.classList.remove("active"); });
+
+  document.getElementById("post-save").addEventListener("click", async ()=>{
+    const title = document.getElementById("post-title").value.trim();
+    const body = document.getElementById("post-body").value.trim();
+    if(!title || !body){ alert("Preencha o título e a mensagem da publicação."); return; }
+    const id = document.getElementById("post-id").value;
+    const existing = id ? posts.find(p=>p.id===id) : null;
+    const data = {
+      id: id || uid(),
+      title,
+      body,
+      category: document.getElementById("post-category").value,
+      author: document.getElementById("post-author").value.trim() || null,
+      pinned: document.getElementById("post-pinned").checked,
+      created_at: existing ? existing.created_at : new Date().toISOString()
+    };
+
+    const { error } = await _supabase.from('opjbv_posts').upsert(data);
+    if(error){ alert("Erro ao salvar publicação."); return; }
+
+    if(id){
+      posts = posts.map(p=> p.id===id ? data : p);
+    } else {
+      posts.push(data);
+    }
+    postOverlay.classList.remove("active");
+    renderPosts();
+  });
+
+  document.getElementById("post-delete").addEventListener("click", async ()=>{
+    const id = document.getElementById("post-id").value;
+    if(id && confirm("Excluir esta publicação?")){
+      const { error } = await _supabase.from('opjbv_posts').delete().eq('id', id);
+      if(error){ alert("Erro ao excluir."); return; }
+      posts = posts.filter(p=>p.id!==id);
+      postOverlay.classList.remove("active");
+      renderPosts();
+    }
+  });
+
+  /* ---------------- Aniversariantes ---------------- */
+  function renderBirthdays(){
+    const list = document.getElementById("bday-list");
+    const curMonth = todayDate.getMonth();
+    const matches = members
+      .filter(m=>{
+        const bd = new Date(m.birthdate+"T00:00:00");
+        return bd.getMonth() === curMonth;
+      })
+      .sort((a,b)=> new Date(a.birthdate).getDate() - new Date(b.birthdate).getDate());
+
+    if(matches.length===0){
+      list.innerHTML = '<p class="empty-note">Nenhum aniversariante cadastrado para este mês.</p>';
+      return;
+    }
+    list.innerHTML = matches.map(m=>{
+      const bd = new Date(m.birthdate+"T00:00:00");
+      const isToday = bd.getDate()===todayDate.getDate() && bd.getMonth()===todayDate.getMonth();
+      return `<div class="bday-item">
+        <div class="bday-date">${pad(bd.getDate())}</div>
+        <div>
+          <div class="bday-name">${escapeHTML(m.name)}</div>
+          ${isToday ? '<div class="bday-tag">HOJE 🎉</div>' : ""}
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  document.getElementById("add-member-btn").addEventListener("click", async ()=>{
+    if(!isAuthenticated()){ toast("Faça login para cadastrar aniversariantes."); return; }
+    const name = document.getElementById("member-name").value.trim();
+    const bday = document.getElementById("member-bday").value;
+    if(!name || !bday){ alert("Preencha o nome e a data de nascimento."); return; }
+    
+    const novoMembro = {id: uid(), name, birthdate: bday};
+    const { error } = await _supabase.from('opjbv_members').insert(novoMembro);
+    if(error){ alert("Erro ao adicionar membro."); return; }
+
+    members.push(novoMembro);
+    document.getElementById("member-name").value = "";
+    document.getElementById("member-bday").value = "";
+    renderBirthdays();
+  });
+
+  /* ---------------- Utils ---------------- */
+  function escapeHTML(str){
+    const div = document.createElement("div");
+    div.textContent = str || "";
+    return div.innerHTML;
+  }
+
+  let toastTimer = null;
+  function toast(msg){
+    let el = document.getElementById("toast-el");
+    if(!el){
+      el = document.createElement("div");
+      el.id = "toast-el";
+      el.style.cssText = "position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--burgundy-dark);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;box-shadow:0 8px 20px rgba(0,0,0,0.25);z-index:100;opacity:0;transition:opacity .2s;";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.opacity = "1";
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>{ el.style.opacity = "0"; }, 2200);
+  }
+
+  /* ---------------- Autenticação ---------------- */
+  const loginOverlay = document.getElementById("login-overlay");
+  const usersOverlay = document.getElementById("users-overlay");
+  const authMenu = document.getElementById("auth-menu");
+
+  function renderAuthUI(){
+    const btn = document.getElementById("auth-btn");
+    const label = document.getElementById("auth-user-label");
+    if(isAuthenticated()){
+      btn.textContent = currentUser().charAt(0).toUpperCase();
+      btn.classList.add("logged");
+      btn.title = "Logado como " + currentUser();
+      label.textContent = "Logado como " + currentUser();
+    } else {
+      btn.textContent = "🔒";
+      btn.classList.remove("logged");
+      btn.title = "Entrar";
+      label.textContent = "";
+    }
+    document.getElementById("new-post-btn").style.display = isAuthenticated() ? "inline-block" : "none";
+    document.getElementById("member-form").style.display = isAuthenticated() ? "flex" : "none";
+    document.getElementById("member-form-locked").style.display = isAuthenticated() ? "none" : "block";
+  }
+
+  function refreshAll(){
+    renderAuthUI();
+    renderCalendar();
+    renderPosts();
+    renderBirthdays();
+  }
+
+  document.getElementById("auth-btn").addEventListener("click", ()=>{
+    if(isAuthenticated()){
+      authMenu.classList.toggle("active");
+    } else {
+      document.getElementById("login-username").value = "";
+      document.getElementById("login-password").value = "";
+      document.getElementById("login-error").classList.remove("active");
+      loginOverlay.classList.add("active");
+    }
+  });
+  document.addEventListener("click", (e)=>{
+    if(!document.querySelector(".auth-area").contains(e.target)){
+      authMenu.classList.remove("active");
+    }
+  });
+
+  document.getElementById("login-cancel").addEventListener("click", ()=> loginOverlay.classList.remove("active"));
+  loginOverlay.classList.addEventListener("click", (e)=>{ if(e.target===loginOverlay) loginOverlay.classList.remove("active"); });
+
+  function doLogin(){
+    const u = document.getElementById("login-username").value.trim();
+    const p = document.getElementById("login-password").value;
+    const match = users.find(usr=> usr.username===u && usr.password===p);
+    if(!match){
+      document.getElementById("login-error").classList.add("active");
+      return;
+    }
+    sessionStorage.setItem(SESSION_KEY, match.username);
+    loginOverlay.classList.remove("active");
+    refreshAll();
+  }
+  document.getElementById("login-submit").addEventListener("click", doLogin);
+  document.getElementById("login-password").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
+  document.getElementById("login-username").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
+
+  document.getElementById("menu-logout").addEventListener("click", ()=>{
+    sessionStorage.removeItem(SESSION_KEY);
+    authMenu.classList.remove("active");
+    refreshAll();
+  });
+
+  document.getElementById("menu-manage-users").addEventListener("click", ()=>{
+    authMenu.classList.remove("active");
+    renderUsersList();
+    usersOverlay.classList.add("active");
+  });
+  document.getElementById("users-close").addEventListener("click", ()=> usersOverlay.classList.remove("active"));
+  usersOverlay.addEventListener("click", (e)=>{ if(e.target===usersOverlay) usersOverlay.classList.remove("active"); });
+
+  function renderUsersList(){
+    const list = document.getElementById("users-list");
+    list.innerHTML = users.map(u=>{
+      return `<div class="users-row">
+        <span>${escapeHTML(u.username)}</span>
+        <button class="btn small secondary" data-remove="${escapeHTML(u.username)}" ${users.length<=1?"disabled":""}>Remover</button>
+      </div>`;
+    }).join("");
+    list.querySelectorAll("[data-remove]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const uname = btn.dataset.remove;
+        if(users.length<=1) return;
+        if(!confirm(`Remover o usuário "${uname}"?`)) return;
+        
+        const { error } = await _supabase.from('opjbv_users').delete().eq('username', uname);
+        if(error){ alert("Erro ao remover usuário."); return; }
+
+        const wasSelf = currentUser()===uname;
+        users = users.filter(u=>u.username!==uname);
+        if(wasSelf){
+          sessionStorage.removeItem(SESSION_KEY);
+          usersOverlay.classList.remove("active");
+          refreshAll();
+          return;
+        }
+        renderUsersList();
+      });
+    });
+  }
+
+  document.getElementById("add-user-btn").addEventListener("click", async ()=>{
+    const uname = document.getElementById("new-user-username").value.trim();
+    const pwd = document.getElementById("new-user-password").value;
+    if(!uname || !pwd){ alert("Preencha usuário e senha."); return; }
+    if(users.some(u=>u.username===uname)){ alert("Já existe um usuário com este nome."); return; }
+
+    const novoUser = {username: uname, password: pwd};
+    const { error } = await _supabase.from('opjbv_users').insert(novoUser);
+    if(error){ alert("Erro ao cadastrar usuário."); return; }
+
+    users.push(novoUser);
+    document.getElementById("new-user-username").value = "";
+    document.getElementById("new-user-password").value = "";
+    renderUsersList();
+  });
+
+  // Inicialização puxando do Supabase
+  carregarDadosDoBanco();
+})();
+</script>
